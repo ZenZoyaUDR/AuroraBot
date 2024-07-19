@@ -1,0 +1,2 @@
+# AuroraBot
+ Minecraft utility bot
