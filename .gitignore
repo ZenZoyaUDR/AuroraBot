@@ -1,3 +1,7 @@
+# Ignore for this code base
+config.yaml
+config.yml
+
 # Logs
 logs
 *.log

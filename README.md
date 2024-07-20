@@ -1,2 +1,3 @@
 # AuroraBot
- Minecraft utility bot
+
+An advanced ish minecraft utility bot

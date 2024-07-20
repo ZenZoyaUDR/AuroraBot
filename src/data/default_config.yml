@@ -1,0 +1,31 @@
+prefixes:
+  - "my:"
+  - "bot:"
+
+logErrors: true
+isProduction: false
+
+encryptionKey:
+  trustedKey: "You dont know what this is?"
+  fullAccessKey: "Its for making the hash harder to crack,  just smash you keyboard for randomness(ish) and prey"
+minecraft:
+  username: "MyBot"
+  hideErrors: false
+  servers:
+    - host: "localhost"
+      port: 25565
+      version: "1.20.4"
+    - host: "your.second.server"
+      port: 25565
+      version: "1.20.4"
+discord:
+  enable: false
+  discordLink: "https://discord.gg/VpB4gdfztM"
+  trustedHashChannel: "Channel ID here"
+  fullAccessHashChannel: "Channel ID here"
+  token: "Your discord bot token here!"
+  servers:
+    localhost:25565: "Channel ID here"
+    your.second.server:25565: "Channel ID here"
+  spam_size: 1500
+  prefix: "Your discord bot prefix here"
