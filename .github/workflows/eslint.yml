@@ -31,10 +31,10 @@ jobs:
 
       - name: Run ESLint
         run: npx eslint .
-          --config .eslintrc.js
-          --ext .js,.jsx,.ts,.tsx
-          --format @microsoft/eslint-formatter-sarif
+          --cache
+          --config eslint.config.js
           --output-file eslint-results.sarif
+          --format @microsoft/eslint-formatter-sarif
         continue-on-error: true
 
       - name: Upload analysis results to GitHub
