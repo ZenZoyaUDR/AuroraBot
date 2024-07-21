@@ -1,6 +1,6 @@
 /**
- * Self note: i have spent like 4 hours just to migrate
- * this code to ESM6
+ * Self note: i have spent like 14 hours just to migrate
+ * this code to ESM6 (no joke)
  */
 
 import fs from "fs";
@@ -21,15 +21,9 @@ async function init(bot) {
 }
 
 async function reload(bot) {
-  if (modules.length > 0) {
-    const pfiles = Object.keys(require.cache).filter((r) =>
-      r.startsWith(path.resolve(modulesDir))
-    );
-    pfiles.forEach((f) => {
-      delete require.cache[f];
-    });
-    modules = [];
-  }
+  // Clear previous modules from the modules array
+  modules = [];
+
   const files = fs.readdirSync(modulesDir);
   for (const file of files) {
     if (!file.endsWith(".js")) {
@@ -38,7 +32,8 @@ async function reload(bot) {
     }
     const modulePath = pathToFileURL(path.join(modulesDir, file)).href;
     try {
-      const { inject } = await import(modulePath);
+      // Import the module fresh
+      const { inject } = await import(modulePath + `?t=${Date.now()}`);
       if (typeof inject === "function") {
         modules.push(inject);
       } else {
@@ -52,7 +47,7 @@ async function reload(bot) {
 
 export { init, modules as plugins, reload };
 
-/*
+/* Old code?
 import fs from "fs";
 import path from "path";
 

@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "test": "npx eslint index.js"
+    "test": "npx eslint index.js --cache --fix"
   },
   "author": "ZenZoya",
   "license": "MIT",

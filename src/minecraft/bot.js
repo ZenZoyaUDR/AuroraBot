@@ -22,6 +22,7 @@ export function createBot(options = {}) {
   const bot = new EventEmitter();
   bot.options = { username, version, hideErrors, brand, logErrors, host, port };
   bot.chatqueue = [];
+  bot.logger = logger;
 
   if (logErrors) {
     bot.on("error", (err) => {
@@ -39,10 +40,40 @@ export function createBot(options = {}) {
   });
 
   pluginManager.init(bot);
-  bot.logger = logger;
   bot.plmanager = pluginManager;
 
-  bot.write = (name, data) => bot._client.write(name, data);
+  bot.chat = (type, value) => {
+    if (type === "command") {
+      bot._client.write("chat_command", {
+        command: value?.substring(0, 256),
+
+        timestamp: BigInt(Date.now()),
+        salt: 0n,
+        argumentSignatures: [],
+        signedPreview: false,
+        messageCount: 0,
+        acknowledged: Buffer.alloc(3),
+        previousMessages: [],
+      });
+    }
+    if (type === "chat") {
+      const acc = 0;
+      const bitset = Buffer.allocUnsafe(3);
+      bitset[0] = acc & 0xff;
+      bitset[1] = (acc >> 8) & 0xff;
+      bitset[2] = (acc >> 16) & 0xff;
+
+      bot._client.write("chat_message", {
+        message: value?.substring(0, 256),
+        timestamp: BigInt(Date.now()),
+        salt: 0n,
+        offset: 0,
+        acknowledged: bitset,
+      });
+    }
+  };
+
+  /* bot.write = (name, data) => bot._client.write(name, data);
   bot.chat = (message) => bot.write("chat", { message });
 
   bot.delayedChat = (msg) => {
@@ -57,7 +88,7 @@ export function createBot(options = {}) {
     if (bot.chatqueue.length > 0) {
       bot.chat(bot.chatqueue.shift());
     }
-  }, 500);
+  }, 500); */
 
   bot.convertFont = (str) => convertFont(str);
   bot.colorPalette = {
@@ -69,35 +100,42 @@ export function createBot(options = {}) {
     FOURTHARY: "gray",
   };
 
-  const prefixGradients = generateGradientText(
-    bot.convertFont("Aurora"),
+  const generatePrefix = (text, colors) => {
+    const gradients = generateGradientText(bot.convertFont(text), ...colors);
+
+    const prefix = new Tellraw();
+    gradients.forEach(({ char, color }) => {
+      prefix.add(new Text(char).setColor(color));
+    });
+    prefix.add(new Text(" › ").setColor(colors[3]));
+
+    return prefix.get(false);
+  };
+
+  const prefix = generatePrefix("Aurora", [
     bot.colorPalette.PRIMARY,
     bot.colorPalette.SECONDARY,
-    bot.colorPalette.THIRDARY
-  );
-
-  const prefix = new Tellraw();
-  prefixGradients.forEach(({ char, color }) => {
-    prefix.add(new Text(char).setColor(color));
-  });
-  prefix.add(new Text(" › ").setColor(bot.colorPalette.FOURTHARY)).get(false);
+    bot.colorPalette.THIRDARY,
+    bot.colorPalette.FOURTHARY,
+  ]);
 
   bot.tellraw = (text, selector = "@a") => {
-    if (bot.core != undefined) {
-      bot.core.run(`minecraft:tellraw ${selector} ${JSON.stringify(text)}`);
-    } else {
+    if (!bot.core) {
       bot.core.refill();
       bot.core.run(`minecraft:tellraw ${selector} ${JSON.stringify(text)}`);
       console.info("Refilled missing core");
+    } else {
+      bot.core.run(`minecraft:tellraw ${selector} ${JSON.stringify(text)}`);
     }
   };
 
-  bot.fancymsg = (text, selector) => {
+  bot.fancymsg = (text, selector = "@a") => {
     if (typeof text === "object") {
       const prf = [...prefix, ...(Array.isArray(text) ? text : [text])];
-      return bot.tellraw(prf, selector);
+      bot.tellraw(prf, selector);
+    } else {
+      bot.tellraw(`${text.startsWith("§") ? "" : ""} ${text}`, selector);
     }
-    bot.tellraw(`${text.startsWith("§") ? "" : ""} ${text}`, selector);
   };
 
   bot.npxfanmsg = (text, selector) => {
@@ -118,14 +156,14 @@ export function createBot(options = {}) {
   bot._client.on("login", (client) => bot.emit("login", client));
   bot._client.on("error", (error) => bot.emit("error", error));
   bot._client.on("end", (reason) => bot.emit("end", reason, "end"));
-  bot._client.on("kick_disconnect", (data) => {
-    const parsed = JSON.parse(data);
-    bot.emit("end", parsed.reason, "kick_disconnect");
-  });
-  bot._client.on("disconnect", (data) => {
-    const parsed = JSON.parse(data);
-    bot.emit("end", parsed.reason, "disconnect");
-  });
+  // bot._client.on("kick_disconnect", (data) => {
+  //   console.log(data)
+  //   bot.emit("end", "cool", "kick_disconnect");
+  // });
+  // bot._client.on("disconnect", (data) => {
+  //   const parsed = JSON.parse(data);
+  //   bot.emit("end", "heh", "disconnect");
+  // });
 
   return bot;
 }

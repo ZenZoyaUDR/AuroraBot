@@ -80,14 +80,18 @@ function handleBotLogin(bot, server) {
     `${bot._client.username} successfully login on: ${server.host}:${server.port}`
   );
 
-  const commands = ["/op @s[type=player]", "/god on", "/cspy on", "/vanish on"];
-  commands.forEach((cmd) => bot.delayedChat(cmd));
+  const commands = ["op @s[type=player]", "god on", "cspy on", "vanish on"];
+  commands.forEach((command) => {
+    setTimeout(() => {
+      bot.chat("command", command);
+    }, 300 * commands.indexOf(command));
+  });
 
   setTimeout(() => {
     bot.core.refill();
     setTimeout(() => {
       sendJoinMessage(bot);
-    }, 300);
+    }, 500);
   }, 1000);
 }
 
@@ -101,19 +105,18 @@ function sendJoinMessage(bot) {
     .add(new Text(bot.convertFont("Z")).setColor("#6FF5DF"))
     .add(new Text(bot.convertFont("o")).setColor("#75E6E4"))
     .add(new Text(bot.convertFont("y")).setColor("#7BD6EA"))
-    .add(new Text(bot.convertFont("a")).setColor("#81C7EF"))
-    .add(new Text(bot.convertFont(" - v")).setColor(bot.colorPalette.FOURTHARY))
-    .add(
-      new Text(
-        bot.convertFont(
-          `${require("../../package.json").version} - ${
-            config.isProduction ? "Fox" : "Non Production (dev)"
-          }`
-        )
-      ).setColor("yellow")
-    );
+    .add(new Text(bot.convertFont("a")).setColor("#81C7EF"));
+  // .add(new Text(bot.convertFont(" - v")).setColor(bot.colorPalette.FOURTHARY))
+  // .add(
+  //   new Text(
+  //     bot.convertFont(
+  //       `${require("../../package.json").version} - ${
+  //         config.isProduction ? "Fox" : "Non Production (dev)"
+  //       }`
+  //     )
+  //   ).setColor("yellow")
+  // );
 
   bot.fancymsg(joinmsg.get());
 }
-
 export { bots, clientBots, createBots };

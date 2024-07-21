@@ -1,4 +1,4 @@
-export default async function inject(bot) {
+export async function inject(bot) {
   bot.cloop = {
     list: [],
     add(command, interval, list = true) {
