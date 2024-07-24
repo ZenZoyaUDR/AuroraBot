@@ -18,13 +18,18 @@ function generateRandomString(length) {
   ).join("");
 }
 
-function createBots(servers) {
-  servers.forEach((server) => handleServer(server));
+function createBots(servers, spinner) {
+  const promises = servers.map((server, index) =>
+    handleServer(server, spinner, index, servers.length)
+  );
+  return Promise.all(promises);
 }
 
-function handleServer(server) {
-  const bot = createBotInstance(server);
-  setupBotHandlers(bot, server);
+function handleServer(server, spinner, index, total) {
+  return new Promise((resolve) => {
+    const bot = createBotInstance(server);
+    setupBotHandlers(bot, server, resolve, spinner, index, total);
+  });
 }
 
 // Function to create a bot instance
@@ -46,9 +51,11 @@ function createBotInstance(server) {
   return bot;
 }
 
-function setupBotHandlers(bot, server) {
+function setupBotHandlers(bot, server, resolve, spinner, index, total) {
   bot.once("end", (reason) => handleBotEnd(bot, server, reason));
-  bot._client.on("login", () => handleBotLogin(bot, server));
+  bot._client.on("login", () =>
+    handleBotLogin(bot, server, resolve, spinner, index, total)
+  );
 }
 
 // Function to handle bot end event
@@ -75,10 +82,12 @@ function handleBotEnd(bot, server, reason) {
   }, timeout);
 }
 
-function handleBotLogin(bot, server) {
-  bot.logger.success(
-    `${bot._client.username} successfully login on: ${server.host}:${server.port}`
-  );
+function handleBotLogin(bot, server, resolve, spinner, index, total) {
+  spinner.update({
+    text: `Creating bot ${bot._client.username} successfully logged in on: ${
+      server.host
+    }:${server.port} (${index + 1}/${total})`,
+  });
 
   const commands = ["op @s[type=player]", "god on", "cspy on", "vanish on"];
   commands.forEach((command) => {
@@ -91,6 +100,7 @@ function handleBotLogin(bot, server) {
     bot.core.refill();
     setTimeout(() => {
       sendJoinMessage(bot);
+      resolve(); // Resolve the promise when the bot is fully set up
     }, 500);
   }, 1000);
 }
@@ -106,17 +116,7 @@ function sendJoinMessage(bot) {
     .add(new Text(bot.convertFont("o")).setColor("#75E6E4"))
     .add(new Text(bot.convertFont("y")).setColor("#7BD6EA"))
     .add(new Text(bot.convertFont("a")).setColor("#81C7EF"));
-  // .add(new Text(bot.convertFont(" - v")).setColor(bot.colorPalette.FOURTHARY))
-  // .add(
-  //   new Text(
-  //     bot.convertFont(
-  //       `${require("../../package.json").version} - ${
-  //         config.isProduction ? "Fox" : "Non Production (dev)"
-  //       }`
-  //     )
-  //   ).setColor("yellow")
-  // );
-
   bot.fancymsg(joinmsg.get());
 }
+
 export { bots, clientBots, createBots };

@@ -1,4 +1,4 @@
-export async function inject(bot) {
+export function inject(bot) {
   bot.core = {
     area: {
       start: { x: 0, y: 0, z: 0 },
@@ -14,13 +14,11 @@ export async function inject(bot) {
 
       bot.chat(
         "command",
-        `fill ${pos.x + start.x} ${pos.y + start.y} ${pos.z + start.z} ${
-          pos.x + end.x
-        } ${pos.y + end.y} ${
+        `minecraft:fill ${pos.x + start.x} ${pos.y + start.y} ${
+          pos.z + start.z
+        } ${pos.x + end.x} ${pos.y + end.y} ${
           pos.z + end.z
-        } command_block{CustomName:'{"text":"Aurora Core™","color":"${
-          bot.colorPalette.SECONDARY
-        }"}'}`
+        } command_block{CustomName:'{"text":"Aurora Core™","color":"#9d0aff"}'}`
       );
     },
 
@@ -40,6 +38,7 @@ export async function inject(bot) {
       const { start, end } = bot.core.area;
 
       relativePosition.x++;
+
       if (relativePosition.x > end.x) {
         relativePosition.x = start.x;
         relativePosition.z++;
@@ -58,8 +57,6 @@ export async function inject(bot) {
     run(command, output = false) {
       const location = bot.core.currentBlock();
       if (!location) return void bot.core.refill();
-      bot.logger.info("RUNNING: " + command);
-      bot.logger.info("OUTPUT: " + output);
 
       bot._client.write("update_command_block", {
         command: command.substring(0, 32767),
@@ -81,11 +78,11 @@ export async function inject(bot) {
     },
   };
 
-  bot._client.on("move", () => {
+  bot.on("move", () => {
     bot.core.move(bot.position);
   });
 
-  bot._client.on("login", () => {
+  bot.on("login", () => {
     const timer = setInterval(() => {
       bot.core.refill();
     }, 60000 * 5);

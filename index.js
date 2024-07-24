@@ -2,6 +2,7 @@ import figlet from "figlet";
 import fs from "fs";
 import gradient from "gradient-string";
 import js_yaml from "js-yaml";
+import { createSpinner } from "nanospinner";
 import path from "path";
 import { createBots } from "./src/minecraft/index.js";
 import loggerModule from "./src/util/logger.js";
@@ -21,7 +22,7 @@ async function printAsciiArt() {
           logger.error("Error generating text with figlet:", err);
           return reject(err);
         }
-        console.info(gradient("#db69ff", "#ffaaff").multiline(data));
+        console.info(gradient("#9f0fff", "#db69ff", "#ffaaff").multiline(data));
         resolve();
       }
     );
@@ -56,13 +57,25 @@ async function initialize() {
   try {
     const configContent = fs.readFileSync(configPath, "utf8");
     const config = js_yaml.load(configContent);
-    logger.success("Configuration loaded successfully, creating bots...");
-    createBots(config.minecraft.servers);
+    logger.success("Configuration loaded successfully");
+
+    const spinner = createSpinner("Creating bot")
+      .start({
+        color: "magenta",
+      })
+      .update({
+        frames: ["🌕︎", "🌖︎", "🌗︎", "🌘︎", "🌑︎", "🌘︎", "🌗︎", "🌖︎", "🌕︎"],
+        interval: 100,
+      });
+    await createBots(config.minecraft.servers, spinner);
+    spinner.success({
+      text: "Successfully created and connecting all bots",
+      mark: "✔ ",
+    });
   } catch (err) {
     logger.error("Error loading configuration:", err.stack);
   }
 
-  // Error handling
   process.on("uncaughtException", (err) => {
     logger.error("[Uncaught exception]", err.stack);
   });
@@ -72,7 +85,6 @@ async function initialize() {
   });
 }
 
-// Start the initialization
 initialize().catch((err) => {
   logger.error("Initialization failed:", err);
 });
