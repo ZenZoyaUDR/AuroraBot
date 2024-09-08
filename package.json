@@ -1,29 +1,29 @@
 {
-  "name": "aurorabot",
-  "version": "1.0.1",
-  "description": "Minecraft utility bot",
-  "main": "index.js",
-  "type": "module",
-  "scripts": {
-    "start": "node index.js",
-    "test": "npx eslint index.js --cache --fix"
-  },
-  "author": "ZenZoya",
-  "license": "MIT",
-  "devDependencies": {
-    "@eslint/js": "^9.7.0",
-    "@types/bun": "latest",
-    "eslint": "9.x",
-    "globals": "^15.8.0"
-  },
-  "peerDependencies": {
-    "typescript": "^5.0.0"
-  },
-  "dependencies": {
-    "figlet": "^1.7.0",
-    "gradient-string": "^2.0.2",
-    "js-yaml": "^4.1.0",
-    "minecraft-protocol": "^1.47.0",
-    "nanospinner": "^1.1.0"
-  }
+    "name": "aurorabot",
+    "version": "1.0.18",
+    "description": "Minecraft utility bot",
+    "main": "index.js",
+    "type": "module",
+    "author": "ZenZoya",
+    "license": "MIT",
+    "scripts": {
+        "start": "node index.js",
+        "test": "npx eslint index.js --fix"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.7.0",
+        "@types/bun": "latest",
+        "eslint": "9.x",
+        "globals": "^15.8.0"
+    },
+    "peerDependencies": {
+        "typescript": "^5.0.0"
+    },
+    "dependencies": {
+        "figlet": "^1.7.0",
+        "gradient-string": "^2.0.2",
+        "js-yaml": "^4.1.0",
+        "minecraft-protocol": "^1.47.0",
+        "nanospinner": "^1.1.0"
+    }
 }
