@@ -64,7 +64,7 @@ async function initialize() {
             fs.copyFileSync(defaultConfigPath, configPath);
             logger.success('Default config copied successfully');
         } catch (copyErr) {
-            logger.error(`Failed to copy default config: ${copyErr.message}`);
+            logger.fatal(`Failed to copy default config: ${copyErr.message}`);
         }
     }
 
@@ -74,14 +74,14 @@ async function initialize() {
         config = js_yaml.load(configContent);
         logger.success('Configuration loaded successfully');
     } catch (err) {
-        logger.error('Error loading configuration:', err.stack);
+        logger.fatal('Error loading configuration:', err.stack);
     }
 
     try {
         logger.info('Connecting...');
-        createBots(config.minecraft.servers);
+        createBots(config.minecraft.servers, config);
     } catch (err) {
-        logger.error('Error creating bot:', err.stack);
+        logger.fatal('Error creating bot:', err.stack);
     }
 
     process.on('uncaughtException', (err) => {
@@ -93,5 +93,5 @@ async function initialize() {
 }
 
 initialize().catch((err) => {
-    logger.error('Initialization failed:', err.stack);
+    logger.fatal('Initialization failed:', err.stack);
 });

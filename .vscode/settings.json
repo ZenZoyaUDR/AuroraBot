@@ -3,5 +3,14 @@
     "editor.formatOnPaste": true,
     "editor.formatOnSave": true,
     "editor.formatOnType": true,
-    "diffEditor.codeLens": true
+    "diffEditor.codeLens": true,
+    "cSpell.words": [
+        "cooldown",
+        "cspy",
+        "fancymsg",
+        "FOURTHARY",
+        "permlevel",
+        "Tellraw",
+        "THIRDARY"
+    ]
 }

@@ -1,13 +1,10 @@
+# Documentations for the config file and other stuff
+# is on folder named "Docs"
+
+# Minecraft bot configuration
 prefixes:
     - 'my:'
     - 'bot:'
-
-logErrors: true
-isProduction: false
-
-encryptionKey:
-    trustedKey: 'You dont know what this is?'
-    fullAccessKey: 'Its for making the hash harder to crack, just smash you keyboard for randomness(ish) and prey'
 minecraft:
     username: 'MyBot'
     hideErrors: false
@@ -20,14 +17,26 @@ minecraft:
           port: 25565
           version: '1.20.4'
           name: 'MySecondServer'
+# Discord bot configuration
 discord:
-    enable: false
     discordLink: 'https://discord.gg/VpB4gdfztM'
     trustedHashChannel: 'Channel ID here'
     fullAccessHashChannel: 'Channel ID here'
-    token: 'Your discord bot token here!'
-    servers:
-        localhost:25565: 'Channel ID here'
-        your.second.server:25565: 'Channel ID here'
+    discordBot:
+        primaryToken: 'Your primary discord bot token here!'
+        enableBridge: false
+        bridge:
+            localhost:25565:
+                - channelId: 'Channel ID here'
+                - botToken: 'Your discord bot token for this server!'
+            your.second.server:25565:
+                - channelId: 'Channel ID here'
+                - botToken: 'Your discord bot token for this server!'
     spam_size: 1500
     prefix: 'Your discord bot prefix here'
+# Misc configuration
+logErrors: true
+isProduction: false
+encryptionKey:
+    trusted: 'You dont know what this is?'
+    fullAccess: 'Its for making the hash harder to crack, just smash you keyboard for randomness(ish)'

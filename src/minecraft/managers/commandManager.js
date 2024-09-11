@@ -1,58 +1,70 @@
-const fs = require('fs');
-const path = require('path');
-const js_yaml = require('js-yaml');
-const { genHash, hashCheck } = require('../../util/hash.js');
+import fs from 'fs';
+import path from 'path';
+import { genHash, hashCheck } from './hashManager.js';
+import { Tellraw, Text } from '../../util/tellraw.js';
 
-const config = js_yaml.load(
-    fs.readFileSync(path.join(__dirname, '../../../', 'config.yml')),
-);
-const prefixes = config.prefixes;
 let commands = new Map();
+let prefixes = [];
 
-function init(bot) {
+/**
+ * Command Manager logic
+ */
+export function init(bot, config) {
+    prefixes = config.prefixes;
+
+    // Generate initial hash
     genHash('all', bot);
     reload();
 }
 
-function reload() {
+export function reload() {
     // Clear the require cache for command files & current commands map
-    Object.keys(require.cache).forEach((module) => {
-        if (module.startsWith(path.resolve('src/commands/'))) {
-            delete require.cache[module];
-        }
-    });
     commands.clear();
 
+    const commandDir = path.resolve('src/commands/');
+    const commandFiles = fs
+        .readdirSync(commandDir)
+        .filter((cmd) => cmd.endsWith('.js'));
+
     // Read and load all command files
-    fs.readdirSync('src/commands/')
-        .filter((cmd) => cmd.endsWith('.js'))
-        .forEach((cmd) => {
-            try {
-                const cmdData = require(path.resolve(`src/commands/${cmd}`));
-                if (isValidCmd(cmdData)) {
-                    cmdData.aliases.forEach((alias) => {
-                        commands.set(alias.toLowerCase(), cmdData);
-                    });
-                } else {
-                    console.log(`Invalid command file: ${cmd}`);
-                }
-            } catch (err) {
-                console.log(`Error while loading command ${cmd}:`, err);
+    commandFiles.forEach(async (cmdFile) => {
+        try {
+            const cmdModule = await import(`${commandDir}/${cmdFile}`);
+
+            if (isValidCmd(cmdModule)) {
+                const { commandMeta } = cmdModule;
+
+                // Map all aliases and main command
+                [commandMeta.name, ...commandMeta.aliases].forEach((alias) => {
+                    commands.set(alias.toLowerCase(), cmdModule);
+                });
+            } else {
+                console.log(`Invalid command file: ${cmdFile}`);
             }
-        });
+        } catch (err) {
+            console.log(`Error while loading command ${cmdFile}:`, err);
+        }
+    });
 }
 
-function isValidCmd(cmdData) {
+/**
+ * Validates whether the command structure matches the required format
+ */
+export function isValidCmd(cmdModule) {
+    const { commandMeta, execute } = cmdModule;
+
     return (
-        typeof cmdData.permlevel === 'number' &&
-        Array.isArray(cmdData.aliases) &&
-        typeof cmdData.usage === 'string' &&
-        typeof cmdData.description === 'string' &&
-        typeof cmdData.execute === 'function'
+        commandMeta &&
+        typeof commandMeta.name === 'string' &&
+        typeof commandMeta.description === 'string' &&
+        Array.isArray(commandMeta.aliases) &&
+        typeof commandMeta.permlevel === 'number' &&
+        typeof commandMeta.usage === 'string' &&
+        typeof execute === 'function'
     );
 }
 
-function getCommand(cmd) {
+export function getCommand(cmd) {
     cmd = cmd.toLowerCase();
     for (const prefix of prefixes) {
         if (cmd.startsWith(prefix)) {
@@ -66,61 +78,121 @@ function getCommand(cmd) {
     throw new Error(`Command not found: ${cmd}`);
 }
 
-function executeCmd(command, args, bot, username, rawargs, rawuser, cspy) {
-    let cmd = getCommand(command);
-    if (cmd.permlevel === 1) {
+export function executeCmd(command, args, bot, senderName) {
+    const cmdModule = getCommand(command);
+    const { permlevel } = cmdModule.commandMeta;
+
+    if (permlevel === 1) {
         if (hashCheck('trust', args[0])) {
             args.shift();
             genHash('trust', bot);
-            return cmd.execute(
-                command,
-                args,
-                bot,
-                this,
-                username,
-                rawargs,
-                rawuser,
-                cspy,
-            );
+            return cmdModule.execute(command, args, bot, this, senderName);
         } else {
             throw new Error('Invalid trusted hash!');
         }
-    } else if (cmd.permlevel === 2) {
+    } else if (permlevel === 2) {
         if (hashCheck('full', args[0])) {
             args.shift();
             genHash('full', bot);
-            return cmd.execute(
-                command,
-                args,
-                bot,
-                this,
-                username,
-                rawargs,
-                rawuser,
-                cspy,
-            );
+            return cmdModule.execute(command, args, bot, this, senderName);
         } else {
             throw new Error('Invalid full access hash!');
         }
     }
-    return cmd.execute(
-        command,
-        args,
-        bot,
-        this,
-        username,
-        rawargs,
-        rawuser,
-        cspy,
-    );
+
+    return cmdModule.execute(command, args, bot, this, senderName);
 }
 
-module.exports = {
-    init,
-    reload,
-    getCommand,
-    isValidCmd,
-    executeCmd,
-    commands,
-    prefixes,
-};
+/**
+ * Chat command logic
+ */
+export function handleCommand(bot, message, senderName, uuid, blacklistUUID) {
+    let args = [];
+    let command = '';
+
+    const prefix = prefixes.find((prefix) => message.startsWith(prefix));
+
+    args = message.slice(prefix.length).split(' ');
+    command = args.shift();
+
+    bot.logger.info(`Command detected: ${command}, Args: ${args.join(' ')}`);
+
+    if (blacklistUUID.includes(uuid)) {
+        sendBlacklistMessage(bot, senderName);
+        return;
+    }
+
+    try {
+        executeCmd(command, args, bot, senderName);
+    } catch (err) {
+        handleCommandError(bot, err);
+    }
+}
+
+function sendBlacklistMessage(bot, name) {
+    const tell = new Tellraw()
+        .add(
+            new Text(
+                bot.convertFont('You are blacklisted from using'),
+            ).setColor(bot.colorPalette.THIRDARY),
+        )
+        .add(new Text(" Aurora's ").setColor(bot.colorPalette.SECONDARY))
+        .add(
+            new Text(bot.convertFont('commands.')).setColor(
+                bot.colorPalette.THIRDARY,
+            ),
+        )
+        .add('\n')
+        .add(
+            new Text(
+                bot.convertFont(' (Only you can see this message)'),
+            ).setColor('gray'),
+        )
+        .add('\n\n');
+
+    bot.fancymsg(tell.get(false), name);
+}
+
+function handleCommandError(bot, err) {
+    let tell;
+    const errorMsg = err.message;
+
+    if (errorMsg.startsWith('Command not found: ')) {
+        tell = new Tellraw()
+            .add(
+                new Text('Command not found: ').setColor(
+                    bot.colorPalette.THIRDARY,
+                ),
+            )
+            .add(
+                new Text(errorMsg.split('Command not found: ')[1]).setColor(
+                    bot.colorPalette.SECONDARY,
+                ),
+            );
+    } else if (errorMsg.startsWith('Invalid trusted hash!')) {
+        tell = new Tellraw().add(
+            new Text(
+                bot.convertFont('Please provide valid trusted hash!'),
+            ).setColor(bot.colorPalette.DANGER),
+        );
+    } else if (errorMsg.startsWith('Invalid full access hash!')) {
+        tell = new Tellraw().add(
+            new Text(
+                bot.convertFont('Please provide valid full access hash!'),
+            ).setColor(bot.colorPalette.DANGER),
+        );
+    } else {
+        tell = new Tellraw().add(
+            new Text(
+                bot.convertFont(
+                    'An error occurred, check console for more info.',
+                ),
+            ).setColor(bot.colorPalette.DANGER),
+        );
+        bot.logger.error(err);
+    }
+
+    bot.fancymsg(tell.get(false));
+}
+
+export { prefixes };

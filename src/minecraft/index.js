@@ -1,13 +1,12 @@
-import fs from 'fs';
-import js_yaml from 'js-yaml';
-import path from 'path';
 import { Tellraw, Text } from '../util/tellraw.js';
 import { createBot } from './bot.js';
+import * as commandManager from './managers/commandManager.js';
 
-// Load the configuration
-const configPath = path.join('./config.yml');
-const config = js_yaml.load(fs.readFileSync(configPath));
+const bots = {};
+const clientBots = [];
+let globalConfig = {};
 
+// Helper function to generate random strings for usernames
 function generateRandomString(length) {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     return Array.from({ length }, () =>
@@ -15,33 +14,35 @@ function generateRandomString(length) {
     ).join('');
 }
 
-const bots = {};
-const clientBots = [];
-
-function createBots(servers) {
+// Create bots for each server in the provided list
+function createBots(servers, config) {
+    globalConfig = config; // Store config globally
     servers.forEach((server) => handleServer(server));
 }
 
+// Handle individual server connection and bot management
 function handleServer(server) {
     function handleBot() {
         const bot = createBotInstance(server);
         setupBotHandlers(bot, server);
-        setupBotCommands(bot);
+        setupChatListener(bot);
     }
-
     handleBot();
 }
 
+// Create a bot instance for a given server
 function createBotInstance(server) {
     const bot = createBot({
         serverName: server.name,
         host: server.host,
         port: server.port,
-        username: `${config.minecraft.username}_${generateRandomString(4)}`,
+        username: `${globalConfig.minecraft.username}_${generateRandomString(
+            4,
+        )}`,
         version: server.version,
-        hideErrors: config.minecraft.hideErrors,
+        hideErrors: globalConfig.minecraft.hideErrors,
         brand: 'vanilla',
-        logErrors: config.logErrors,
+        logErrors: globalConfig.logErrors,
     });
 
     bots[`${server.host}:${server.port}`] = bot;
@@ -49,19 +50,19 @@ function createBotInstance(server) {
     return bot;
 }
 
+// Setup necessary handlers for bot lifecycle events (end and login)
 function setupBotHandlers(bot, server) {
     bot.once('end', (reason) => handleBotEnd(bot, server, reason));
     bot._client.on('login', () => handleBotLogin(bot, server));
 }
 
+// Handle bot disconnection and automatic reconnection logic
 function handleBotEnd(bot, server, reason) {
     let timeout = 3000;
-    if (
-        reason.extra?.find(
-            (data) =>
-                data.text === 'Wait 5 seconds before connecting, thanks! :)',
-        )
-    ) {
+
+    // Handle specific cooldown case
+    const cooldownMessage = 'Wait 5 seconds before connecting, thanks! :)';
+    if (reason.extra?.find((data) => data.text === cooldownMessage)) {
         timeout = 6000;
         bot.logger.warn(
             `[${
@@ -70,10 +71,11 @@ function handleBotEnd(bot, server, reason) {
                     : bot.options.serverName
             }] ${
                 bot._client.username
-            }: Im on 6 seconds cooldown before connecting.`,
+            }: I'm on a 6-second cooldown before reconnecting.`,
         );
     }
 
+    // Clean up bot from active bot lists
     delete bots[`${server.host}:${server.port}`];
     const cliBotsIndex = clientBots.indexOf(bot);
     if (cliBotsIndex !== -1) {
@@ -88,28 +90,31 @@ function handleBotEnd(bot, server, reason) {
         }] ${bot._client.username}:`,
         reason,
     );
+
+    // Attempt to reconnect the bot after a delay
     setTimeout(() => {
         bot.end();
         handleServer(server);
     }, timeout);
 }
 
+// Handle bot login and send initial commands
 function handleBotLogin(bot, server) {
     bot.logger.info(
-        `${bot._client.username} successfully login on: ${server.host}:${server.port}`,
+        `${bot._client.username} successfully logged in on: ${server.host}:${server.port}`,
     );
-    // commandHandler.init(bot);
-    // bot.musicplayer = new MusicPlayer(bot);
+    commandManager.init(bot, globalConfig);
 
+    // Initial setup commands
     bot.chat('command', 'op @s[type=player]');
     bot.chat('command', 'god on');
     bot.chat('command', 'cspy on');
     bot.chat('command', 'vanish on');
-    // bot.delayedChat(`/minecraft:tp ${Math.floor(Math.random() * 100000)} 100 ${Math.floor(Math.random() * 100000)}`)
 
     bot.core.refill();
-    setInterval(() => {
-        const joinmsg = new Tellraw()
+
+    setTimeout(() => {
+        const joinMsg = new Tellraw()
             .add(
                 new Text(
                     bot.convertFont('Open source Minecraft Bot By '),
@@ -122,205 +127,34 @@ function handleBotLogin(bot, server) {
             .add(new Text(bot.convertFont('o')).setColor('#75E6E4'))
             .add(new Text(bot.convertFont('y')).setColor('#7BD6EA'))
             .add(new Text(bot.convertFont('a')).setColor('#81C7EF'));
-        bot.fancymsg(joinmsg.get());
-    }, 1000);
+        bot.fancymsg(joinMsg.get());
+    }, 4000);
 }
 
-function setupBotCommands(bot) {
-    let blacklisted = [];
+function setupChatListener(bot) {
+    bot.on('custom_playerChat', (msg, uuid, plainMessage, senderName) => {
+        bot.logger.chat(`[${bot.options.serverName}]`, msg);
 
-    bot.on('custom_playerChat', (msg, uuid, plainMessage) => {
-        if (plainMessage == 'aura:test') bot.tellraw('HEY :D');
-        //     const message = msg.clean;
-        //     if (message.length <= 1) return;
-        //     if (message.startsWith('^')) {
-        //         sendPrefixChangeMessage(bot, user);
-        //     }
-        //     handleCommand(bot, user, msg, blacklisted);
+        // Prefix check
+        const prefix = commandManager.prefixes.find((prefix) =>
+            plainMessage.startsWith(prefix),
+        );
+        if (!prefix) return;
+
+        // Command
+        const blacklistUUID = []; // Load or configure your blacklist UUIDs
+        try {
+            commandManager.handleCommand(
+                bot,
+                plainMessage,
+                senderName,
+                uuid,
+                blacklistUUID,
+            );
+        } catch (err) {
+            bot.logger.error(`Error handling command: ${err.stack}`);
+        }
     });
 }
-
-// function sendPrefixChangeMessage(bot, user) {
-//     const tell = new Tellraw()
-//         .add(
-//             new Text(
-//                 bot.convertFont(
-//                     'Hey! Horizon how used new and improved prefix!',
-//                 ),
-//             ).setColor(bot.colorPalette.THIRDARY),
-//         )
-//         .add('\n\n')
-//         .add(
-//             new Text(
-//                 bot.convertFont('The prefix now used is a namespace prefix.'),
-//             ).setColor(bot.colorPalette.SECONDARY),
-//         )
-//         .add('\n\n')
-//         .add(new Text('> ').setColor(bot.colorPalette.FOURTHARY))
-//         .add(
-//             new Text(
-//                 bot.convertFont(
-//                     'Why the change? well its because the old standard',
-//                 ),
-//             ).setColor(bot.colorPalette.SECONDARY),
-//         )
-//         .add('\n')
-//         .add(
-//             new Text(
-//                 bot.convertFont(
-//                     ' of prefix is not feasible any more, due to growing',
-//                 ),
-//             ).setColor(bot.colorPalette.SECONDARY),
-//         )
-//         .add('\n')
-//         .add(
-//             new Text(
-//                 bot.convertFont(
-//                     ' amount of bots and limited single characters prefix.',
-//                 ),
-//             ).setColor(bot.colorPalette.SECONDARY),
-//         )
-//         .add('\n\n')
-//         .add(
-//             new Text(
-//                 bot.convertFont('So from now on to continue using'),
-//             ).setColor(bot.colorPalette.THIRDARY),
-//         )
-//         .add(new Text(" Horizon's ").setColor(bot.colorPalette.SECONDARY))
-//         .add('\n')
-//         .add(
-//             new Text(bot.convertFont(' commands use ')).setColor(
-//                 bot.colorPalette.THIRDARY,
-//             ),
-//         )
-//         .add(new Text('"izon:"').setColor(bot.colorPalette.SECONDARY))
-//         .add(new Text(', ').setColor(bot.colorPalette.FOURTHARY))
-//         .add(new Text('"horiz:"').setColor(bot.colorPalette.SECONDARY))
-//         .add(new Text(', or ').setColor(bot.colorPalette.FOURTHARY))
-//         .add(new Text('"horizon:"').setColor(bot.colorPalette.SECONDARY))
-//         .add('\n\n')
-//         .add(
-//             new Text(
-//                 bot.convertFont(' (Only you can see this message)'),
-//             ).setColor('gray'),
-//         )
-//         .add('\n');
-
-//     bot.fancymsg(tell.get(false), user.clean);
-// }
-
-// function handleCommand(bot, user, msg, blacklisted) {
-//     const message = msg.clean;
-//     let args = [];
-//     let command = '';
-//     let dirtyargs = [];
-
-//     const prefix = commandHandler.prefixes.find((prefix) =>
-//         message.startsWith(prefix),
-//     );
-//     if (!prefix) return;
-
-//     args = message.slice(prefix.length).split(' ');
-//     command = args.shift();
-//     dirtyargs = msg.raw.split(' ').slice(1);
-
-//     bot.logger.debug(`Command detected: ${command}, Args: ${args.join(' ')}`);
-
-//     if (blacklisted.includes(user.clean)) {
-//         sendBlacklistMessage(bot, user);
-//         return;
-//     }
-
-//     try {
-//         commandHandler.executeCmd(
-//             command,
-//             args,
-//             bot,
-//             user.clean,
-//             dirtyargs,
-//             user.raw,
-//             message.startsWith('/'),
-//         );
-//     } catch (e) {
-//         handleCommandError(bot, e);
-//     }
-// }
-
-// function sendBlacklistMessage(bot, user) {
-//     const tell = new Tellraw()
-//         .add(
-//             new Text(
-//                 bot.convertFont('You are blacklisted from using'),
-//             ).setColor(bot.colorPalette.THIRDARY),
-//         )
-//         .add(new Text(" Horizon's ").setColor(bot.colorPalette.SECONDARY))
-//         .add(
-//             new Text(bot.convertFont('commands.')).setColor(
-//                 bot.colorPalette.THIRDARY,
-//             ),
-//         )
-//         .add('\n')
-//         .add(
-//             new Text(
-//                 bot.convertFont(
-//                     ' If you think this is a mistake please contact the bot owner',
-//                 ),
-//             ).setColor(bot.colorPalette.THIRDARY),
-//         )
-//         .add(
-//             new Text(bot.convertFont(' here (click me)'))
-//                 .setColor(bot.colorPalette.SECONDARY)
-//                 .setURL(config.discord.discordLink),
-//         )
-//         .add(new Text('.').setColor(bot.colorPalette.THIRDARY))
-//         .add(
-//             new Text(
-//                 bot.convertFont(' (Only you can see this message)'),
-//             ).setColor('gray'),
-//         )
-//         .add('\n\n');
-
-//     bot.fancymsg(tell.get(false), user.clean);
-// }
-
-// function handleCommandError(bot, e) {
-//     let tell;
-//     if (e.message.startsWith('Command not found: ')) {
-//         tell = new Tellraw()
-//             .add(
-//                 new Text('Command not found: ').setColor(
-//                     bot.colorPalette.THIRDARY,
-//                 ),
-//             )
-//             .add(
-//                 new Text(e.message.split('Command not found: ')[1]).setColor(
-//                     bot.colorPalette.SECONDARY,
-//                 ),
-//             );
-//     } else if (e.message.startsWith('Invalid trusted hash!')) {
-//         tell = new Tellraw().add(
-//             new Text(
-//                 bot.convertFont('Please provide valid trusted hash!'),
-//             ).setColor(bot.colorPalette.DANGER),
-//         );
-//     } else if (e.message.startsWith('Invalid full access hash!')) {
-//         tell = new Tellraw().add(
-//             new Text(
-//                 bot.convertFont('Please provide valid full access hash!'),
-//             ).setColor(bot.colorPalette.DANGER),
-//         );
-//     } else {
-//         tell = new Tellraw().add(
-//             new Text(
-//                 bot.convertFont(
-//                     'An command error occurred check console for more info.',
-//                 ),
-//             ).setColor(bot.colorPalette.DANGER),
-//         );
-//         bot.logger.error(e);
-//     }
-
-//     bot.fancymsg(tell.get(false));
-// }
 
 export { bots, clientBots, createBots };
