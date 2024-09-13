@@ -82,11 +82,13 @@ export function executeCmd(command, args, bot, senderName) {
     const cmdModule = getCommand(command);
     const { permlevel } = cmdModule.commandMeta;
 
+    const handler = { reload, prefixes, commands }; // Explicitly define the handler object with prefixes
+
     if (permlevel === 1) {
         if (hashCheck('trust', args[0])) {
             args.shift();
             genHash('trust', bot);
-            return cmdModule.execute(command, args, bot, this, senderName);
+            return cmdModule.execute(command, args, bot, handler, senderName); // Pass the handler object
         } else {
             throw new Error('Invalid trusted hash!');
         }
@@ -94,13 +96,13 @@ export function executeCmd(command, args, bot, senderName) {
         if (hashCheck('full', args[0])) {
             args.shift();
             genHash('full', bot);
-            return cmdModule.execute(command, args, bot, this, senderName);
+            return cmdModule.execute(command, args, bot, handler, senderName); // Pass the handler object
         } else {
             throw new Error('Invalid full access hash!');
         }
     }
 
-    return cmdModule.execute(command, args, bot, this, senderName);
+    return cmdModule.execute(command, args, bot, handler, senderName); // Pass the handler object
 }
 
 /**
@@ -195,4 +197,4 @@ function handleCommandError(bot, err) {
     bot.fancymsg(tell.get(false));
 }
 
-export { prefixes };
+export { prefixes, commands };

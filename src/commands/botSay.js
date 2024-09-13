@@ -9,7 +9,10 @@ export const commandMeta = {
 };
 
 export async function execute(command, args, bot, handler, senderName) {
-    const { usage, aliases } = commandMeta; // Destructuring to use metadata easily
+    const { usage } = commandMeta;
+
+    // Ensure prefixes exist, fallback to default if not
+    const prefix = handler?.prefixes?.[0] ?? '<PREFIX>'; // Access handler.prefixes safely
 
     if (args.length < 1) {
         const usageMessage = new Tellraw()
@@ -18,9 +21,9 @@ export async function execute(command, args, bot, handler, senderName) {
             .add(new Text('Usage:').setColor(bot.colorPalette.SECONDARY))
             .add(' ')
             .add(
-                new Text(
-                    usage.replace('<PREFIX>', handler.prefixes[0]),
-                ).setColor(bot.colorPalette.THIRDARY),
+                new Text(usage.replace('<PREFIX>', prefix)).setColor(
+                    bot.colorPalette.THIRDARY,
+                ),
             );
 
         return await bot.fancymsg(usageMessage.get(false));
