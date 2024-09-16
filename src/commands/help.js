@@ -82,7 +82,6 @@ export async function execute(command, args, bot, handler, senderName) {
             )
             .add(new Text(': ').color(bot.colorPalette.FOURTHARY));
 
-        // Check if handler.prefixes[0] and cmd.aliases exist before accessing
         if (handler.prefixes?.[0] && cmd.aliases?.[0]) {
             tell.add(
                 new Text(`${handler.prefixes[0]}${cmd.aliases[0]}`).color(
@@ -97,7 +96,6 @@ export async function execute(command, args, bot, handler, senderName) {
             new Text(' Aliases: ').color(bot.colorPalette.FOURTHARY),
         );
 
-        // Check if cmd.aliases exists and iterate over aliases
         if (cmd.aliases && cmd.aliases.length > 0) {
             cmd.aliases.forEach((a, i) => {
                 let alias = `${handler.prefixes?.[0] ?? ''}${a}`;
@@ -136,14 +134,19 @@ export async function execute(command, args, bot, handler, senderName) {
     };
 
     const listCommands = async () => {
-        // Filter out undefined commands
-        let uniqueCommands = new Set(
-            handler.commands.filter((cmd) => cmd !== undefined),
+        let commandsArray = Array.from(handler.commands.values()).map(
+            (c) => c.commandMeta,
         );
+        let uniqueCommands = new Map();
 
-        let cmdArray = Array.from(uniqueCommands);
-        let cmdSize = cmdArray.length;
+        commandsArray.forEach((cmd) => {
+            if (!uniqueCommands.has(cmd.name)) {
+                uniqueCommands.set(cmd.name, cmd);
+            }
+        });
 
+        let uniqueCommandsArray = Array.from(uniqueCommands.values());
+        let cmdSize = uniqueCommandsArray.length;
         let tell = new Tellraw()
             .add(new Text('Commands (').color(bot.colorPalette.FOURTHARY))
             .add(new Text(cmdSize).color(bot.colorPalette.SECONDARY))
@@ -158,13 +161,10 @@ export async function execute(command, args, bot, handler, senderName) {
             .add(new Text(' }').bold().color(bot.colorPalette.FOURTHARY))
             .add('\n');
 
-        // Sort commands based on permlevel
-        cmdArray.sort((a, b) => a.permlevel - b.permlevel);
-        cmdArray.forEach((c) => {
+        uniqueCommandsArray.sort((a, b) => a.permlevel - b.permlevel);
+        uniqueCommandsArray.forEach((c) => {
             let name = c.name ?? 'Unknown';
-            let usage = `${handler.prefixes?.[0] ?? ''}${
-                c.aliases?.[0] ?? ''
-            } `;
+            let usage = `${handler.prefixes?.[0] ?? ''}${c.aliases?.[0] ?? ''}`;
             let color;
 
             if (c.permlevel === 0) color = bot.colorPalette.THIRDARY;
@@ -172,7 +172,7 @@ export async function execute(command, args, bot, handler, senderName) {
             else if (c.permlevel === 2) color = bot.colorPalette.PRIMARY;
 
             tell.add(
-                new Text(name)
+                new Text(`${name} `)
                     .color(color)
                     .setSuggestedCommand(usage)
                     .setHover(
@@ -198,8 +198,9 @@ export async function execute(command, args, bot, handler, senderName) {
         await bot.fancymsg(tell.get(false));
     };
 
+    // Fetch the command directly from the commands map
     if (args.length > 0) {
-        let cmd = handler.getCommand(args.join(' '));
+        let cmd = handler.commands.get(args.join(' '));
         if (!cmd) {
             if (
                 ['perm', 'perms', 'permlevel', 'permission level'].includes(
@@ -212,7 +213,7 @@ export async function execute(command, args, bot, handler, senderName) {
             }
             return;
         }
-        await sendCommandDetails(cmd);
+        await sendCommandDetails(cmd.commandMeta);
     } else {
         await listCommands();
     }

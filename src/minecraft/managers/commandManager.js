@@ -4,6 +4,7 @@ import { genHash, hashCheck } from './hashManager.js';
 import { Tellraw, Text } from '../../util/tellraw.js';
 
 let commands = new Map();
+let aliases = new Map(); // New map to store aliases
 let prefixes = [];
 
 /**
@@ -11,22 +12,19 @@ let prefixes = [];
  */
 export function init(bot, config) {
     prefixes = config.prefixes;
-
-    // Generate initial hash
     genHash('all', bot);
     reload();
 }
 
 export function reload() {
-    // Clear the require cache for command files & current commands map
     commands.clear();
+    aliases.clear(); // Clear aliases when reloading commands
 
     const commandDir = path.resolve('src/commands/');
     const commandFiles = fs
         .readdirSync(commandDir)
         .filter((cmd) => cmd.endsWith('.js'));
 
-    // Read and load all command files
     commandFiles.forEach(async (cmdFile) => {
         try {
             const cmdModule = await import(`${commandDir}/${cmdFile}`);
@@ -34,15 +32,21 @@ export function reload() {
             if (isValidCmd(cmdModule)) {
                 const { commandMeta } = cmdModule;
 
-                // Map all aliases and main command
-                [commandMeta.name, ...commandMeta.aliases].forEach((alias) => {
-                    commands.set(alias.toLowerCase(), cmdModule);
+                // Store the command only once by its name
+                commands.set(commandMeta.name.toLowerCase(), cmdModule);
+
+                // Map all aliases to the main command's name
+                commandMeta.aliases.forEach((alias) => {
+                    aliases.set(
+                        alias.toLowerCase(),
+                        commandMeta.name.toLowerCase(),
+                    );
                 });
             } else {
                 console.log(`Invalid command file: ${cmdFile}`);
             }
         } catch (err) {
-            console.log(`Error while loading command ${cmdFile}:`, err);
+            console.log(`Error while loading command ${cmdFile}:`, err.stack);
         }
     });
 }
@@ -52,7 +56,6 @@ export function reload() {
  */
 export function isValidCmd(cmdModule) {
     const { commandMeta, execute } = cmdModule;
-
     return (
         commandMeta &&
         typeof commandMeta.name === 'string' &&
@@ -71,24 +74,34 @@ export function getCommand(cmd) {
             cmd = cmd.slice(prefix.length);
         }
 
+        // Check if the command exists in the main commands map or the aliases map
         if (commands.has(cmd)) {
             return commands.get(cmd);
+        } else if (aliases.has(cmd)) {
+            return commands.get(aliases.get(cmd)); // Get the main command from the alias
         }
     }
     throw new Error(`Command not found: ${cmd}`);
 }
 
-export function executeCmd(command, args, bot, senderName) {
+export function executeCmd(command, args, bot, senderName, senderUUID) {
     const cmdModule = getCommand(command);
     const { permlevel } = cmdModule.commandMeta;
 
-    const handler = { reload, prefixes, commands }; // Explicitly define the handler object with prefixes
+    const handler = { reload, prefixes, commands, aliases }; // Include aliases in the handler
 
     if (permlevel === 1) {
         if (hashCheck('trust', args[0])) {
             args.shift();
             genHash('trust', bot);
-            return cmdModule.execute(command, args, bot, handler, senderName); // Pass the handler object
+            return cmdModule.execute(
+                command,
+                args,
+                bot,
+                handler,
+                senderName,
+                senderUUID,
+            );
         } else {
             throw new Error('Invalid trusted hash!');
         }
@@ -96,24 +109,34 @@ export function executeCmd(command, args, bot, senderName) {
         if (hashCheck('full', args[0])) {
             args.shift();
             genHash('full', bot);
-            return cmdModule.execute(command, args, bot, handler, senderName); // Pass the handler object
+            return cmdModule.execute(
+                command,
+                args,
+                bot,
+                handler,
+                senderName,
+                senderUUID,
+            );
         } else {
             throw new Error('Invalid full access hash!');
         }
     }
 
-    return cmdModule.execute(command, args, bot, handler, senderName); // Pass the handler object
+    return cmdModule.execute(
+        command,
+        args,
+        bot,
+        handler,
+        senderName,
+        senderUUID,
+    );
 }
 
-/**
- * Chat command logic
- */
 export function handleCommand(bot, message, senderName, uuid, blacklistUUID) {
     let args = [];
     let command = '';
 
     const prefix = prefixes.find((prefix) => message.startsWith(prefix));
-
     args = message.slice(prefix.length).split(' ');
     command = args.shift();
 
@@ -125,7 +148,7 @@ export function handleCommand(bot, message, senderName, uuid, blacklistUUID) {
     }
 
     try {
-        executeCmd(command, args, bot, senderName);
+        executeCmd(command, args, bot, senderName, uuid);
     } catch (err) {
         handleCommandError(bot, err);
     }
@@ -197,4 +220,4 @@ function handleCommandError(bot, err) {
     bot.fancymsg(tell.get(false));
 }
 
-export { prefixes, commands };
+export { prefixes, commands, aliases };
